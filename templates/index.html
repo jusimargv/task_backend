@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestor de Tarefas</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Gestor de Tarefas</h1>
+
+        <!-- Formulário para adicionar ou editar tarefa -->
+        <form id="task-form" onsubmit="submitTask(event)">
+            <h2 id="form-title">Nova Tarefa</h2>
+            <input type="text" id="task-name" placeholder="Nome da Tarefa" required>
+            <input type="number" id="task-cost" placeholder="Custo (R$)" step="0.01" required>
+            <input type="date" id="task-deadline" required>
+            <input type="hidden" id="task-id"> <!-- Campo oculto para o ID da tarefa durante a edição -->
+            <button type="submit">Salvar</button>
+            <button type="button" onclick="clearForm()">Cancelar</button>
+        </form>
+
+        <!-- Lista de Tarefas -->
+        <div id="task-list">
+            <h2>Lista de Tarefas</h2>
+            <!-- As tarefas serão exibidas aqui dinamicamente pelo JavaScript -->
+        </div>
+    </div>
+
+    <!-- Script para manipulação das tarefas -->
+    <script>
+        const apiUrl = 'http://127.0.0.1:5000/tarefas';
+
+        // Função para carregar as tarefas da API e exibi-las
+        async function loadTasks() {
+            const response = await fetch(apiUrl);
+            const tasks = await response.json();
+            const taskList = document.getElementById('task-list');
+            taskList.innerHTML = ''; // Limpa a lista antes de recarregar
+
+            tasks.forEach(task => {
+                const taskElement = document.createElement('div');
+                taskElement.className = 'task-item' + (task.destaque ? ' highlight' : '');
+                taskElement.innerHTML = `
+                    <span>${task.nome} - R$ ${task.custo.toFixed(2)} - Data: ${task.data_limite}</span>
+                    <div>
+                        <button onclick="editTask(${task.id}, '${task.nome}', ${task.custo}, '${task.data_limite}')">Editar</button>
+                        <button onclick="deleteTask(${task.id})">Excluir</button>
+                        <button onclick="moveTask(${task.id}, 'subir')">↑</button>
+                        <button onclick="moveTask(${task.id}, 'descer')">↓</button>
+                    </div>
+                `;
+                taskList.appendChild(taskElement);
+            });
+        }
+
+        // Função para enviar o formulário de nova tarefa ou edição
+        async function submitTask(event) {
+            event.preventDefault();
+
+            const taskId = document.getElementById('task-id').value;
+            const taskData = {
+                nome: document.getElementById('task-name').value,
+                custo: parseFloat(document.getElementById('task-cost').value),
+                data_limite: document.getElementById('task-deadline').value
+            };
+
+            if (taskId) {
+                // Se taskId existe, editar tarefa existente
+                await fetch(`${apiUrl}/${taskId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(taskData)
+                });
+            } else {
+                // Caso contrário, adicionar nova tarefa
+                await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(taskData)
+                });
+            }
+
+            clearForm(); // Limpa o formulário
+            loadTasks(); // Recarrega a lista de tarefas
+        }
+
+        // Função para preencher o formulário com dados para edição
+        function editTask(id, nome, custo, data_limite) {
+            document.getElementById('form-title').innerText = 'Editar Tarefa';
+            document.getElementById('task-id').value = id;
+            document.getElementById('task-name').value = nome;
+            document.getElementById('task-cost').value = custo;
+            document.getElementById('task-deadline').value = data_limite;
+        }
+
+        // Função para limpar o formulário
+        function clearForm() {
+            document.getElementById('form-title').innerText = 'Nova Tarefa';
+            document.getElementById('task-id').value = '';
+            document.getElementById('task-name').value = '';
+            document.getElementById('task-cost').value = '';
+            document.getElementById('task-deadline').value = '';
+        }
+
+        // Função para excluir uma tarefa
+        async function deleteTask(id) {
+            if (confirm('Deseja realmente excluir esta tarefa?')) {
+                await fetch(`${apiUrl}/${id}`, { method: 'DELETE' });
+                loadTasks(); // Recarrega a lista de tarefas
+            }
+        }
+
+        // Função para mover uma tarefa para cima ou para baixo
+        async function moveTask(id, direction) {
+            await fetch(`${apiUrl}/${id}/mover`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ direcao: direction })
+            });
+            loadTasks(); // Recarrega a lista de tarefas
+        }
+
+        // Carrega as tarefas ao abrir a página
+        window.onload = loadTasks;
+    </script>
+</body>
+</html>
